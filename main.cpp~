@@ -1,0 +1,39 @@
+#include <opencv2/opencv.hpp>
+#include "calibDS325.h"
+
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+int main(int argc, char *argv[]){
+  cv::Mat rgb, depth;
+  string rgb_name, depth_name;
+  
+  if(argc < 3){
+    cout << "error! input rgb and depth file name" << endl;
+    cout << "usage: calibDS325 rgb.png depth.png" << endl;
+    exit(-1);
+  }
+
+  rgb_name = string(argv[1]);
+  depth_name = string(argv[2]);
+
+  rgb = cv::imread(rgb_name, 3);
+  depth = cv::imread(depth_name, CV_LOAD_IMAGE_ANYDEPTH);
+
+  cout << depth.type() << endl;
+
+  cv::namedWindow("rgb");
+  cv::namedWindow("depth");
+
+  cv::imshow("rgb", rgb);
+  cv::imshow("depth", depth);
+
+  cout << depth << endl;
+
+  cv::waitKey(0);
+
+  return 0;
+
+}
