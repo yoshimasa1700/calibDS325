@@ -1,9 +1,4 @@
-#include <opencv2/opencv.hpp>
 #include "calibDS325.h"
-
-#include <iostream>
-#include <string>
-#include <sstream>
 
 #include <gflags/gflags.h>
 
@@ -14,36 +9,35 @@ using namespace google;
 #define MIN_DEPTH 0
 
 // definition for gflags
-DEFINE_string(rgbFileName, "rgb_", "default file name");
-DEFINE_string(depthFileName, "depth_", "defalut depth file name");
-DEFINE_string(fileType, ".png", "default file type");
-DEFINE_int32(fileNum, 1, "default file num");
+DEFINE_string(color, "rgb_", "default file name");
+DEFINE_string(depth, "depth_", "defalut depth file name");
+DEFINE_string(type, ".png", "default file type");
+DEFINE_int32(num, 1, "default file num");
 
 int main(int argc, char *argv[]){
   ParseCommandLineFlags(&argc, &argv, true);
 
-
   cv::vector<cv::Mat> rgb(0), depth(0); // checker pattern
-  int fileNum = FLAGS_fileNum;
-  const cv::Size patternSize( 9 ,  6 );
+  int fileNum = FLAGS_num;
+  const cv::Size patternSize(9, 6);
   cv::vector<cv::vector<cv::Point3f> > worldPoints(fileNum);
-  cv::vector<cv::vector<cv::Point2f> > imagePoints(fileNum);	
+  cv::vector<cv::vector<cv::vector<cv::Point2f> > > imagePoints(2);	
   cv::TermCriteria criteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.001 );
+  
+  for(int i = 0; i < 2; ++i)
+    imagePoints[i].resize(fileNum);
 
   // カメラパラメータ行列
-  cv::Mat cameraMatrix;		// 内部パラメータ行列
-  cv::Mat distCoeffs;		// レンズ歪み行列
-  cv::vector<cv::Mat> rotationVectors;	// 撮影画像ごとに得られる回転ベクトル
-  cv::vector<cv::Mat> translationVectors;	// 撮影画像ごとに得られる平行移動ベクトル
-  cv::vector<cv::vector<cv::Point3f> > depthWorldPoints(fileNum);
-  cv::vector<cv::vector<cv::Point2f> > depthImagePoints(fileNum);	
-  cv::TermCriteria depthCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.001 );
+  cv::vector<cv::Mat> cameraMatrix(2);		// 内部パラメータ行列
+  cv::vector<cv::Mat> distCoeffs(2);		// レンズ歪み行列
+  cv::vector<cv::Mat> rotationVectors(2);	// 撮影画像ごとに得られる回転ベクトル
+  cv::vector<cv::Mat> translationVectors(2);	// 撮影画像ごとに得られる平行移動ベクトル
 
   // カメラパラメータ行列
-  cv::Mat depthCameraMatrix;		// 内部パラメータ行列
-  cv::Mat depthDistCoeffs;		// レンズ歪み行列
-  cv::vector<cv::Mat> depthRotationVectors;	// 撮影画像ごとに得られる回転ベクトル
-  cv::vector<cv::Mat> depthTranslationVectors;	// 撮影画像ごとに得られる平行移動ベクトル
+  //cv::Mat depthCameraMatrix;		// 内部パラメータ行列
+  //cv::Mat depthDistCoeffs;		// レンズ歪み行列
+  //cv::vector<cv::Mat> depthRotationVectors;	// 撮影画像ごとに得られる回転ベクトル
+  //cv::vector<cv::Mat> depthTranslationVectors;	// 撮影画像ごとに得られる平行移動ベクトル
 
 
   // create windows
@@ -53,8 +47,8 @@ int main(int argc, char *argv[]){
   // load chess board images
   for(int i = 0; i < fileNum; ++i){
     stringstream rgbfilename, depthfilename;
-    rgbfilename << FLAGS_rgbFileName << i << FLAGS_fileType;
-    depthfilename << FLAGS_depthFileName << i << FLAGS_fileType;
+    rgbfilename << FLAGS_color << i << FLAGS_type;
+    depthfilename << FLAGS_depth << i << FLAGS_type;
     
     cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
 
@@ -85,17 +79,17 @@ int main(int argc, char *argv[]){
 
 
     
-    if( cv::findChessboardCorners( rgb[i], patternSize, imagePoints[i],CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
+    if( cv::findChessboardCorners( rgb[i], patternSize, imagePoints[0][i],CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
     
 
   std::cout << " ... All corners found." << std::endl;
 
-      cv::cornerSubPix(rgb[i], imagePoints[i], cv::Size(11,11), cv::Size(-1,-1),
+      cv::cornerSubPix(rgb[i], imagePoints[0][i], cv::Size(11,11), cv::Size(-1,-1),
 		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
                                       30, 0.01));
       std::cout << "koko" << std::endl;
       // 検出点を描画する
-      cv::drawChessboardCorners( rgb[i], patternSize, ( cv::Mat )( imagePoints[i] ), true );
+      cv::drawChessboardCorners( rgb[i], patternSize, ( cv::Mat )( imagePoints[0][i] ), true );
       //cv::imshow( "rgb", rgb[i] );
       //cv::waitKey( 500 );
     } else {
@@ -136,15 +130,15 @@ int main(int argc, char *argv[]){
     cv::imshow("depth", depth[i]);
     cv::waitKey(100);
     
-    if( cv::findChessboardCorners( depth[i], patternSize, depthImagePoints[i] ,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
+    if( cv::findChessboardCorners( depth[i], patternSize, imagePoints[1][i] ,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
       std::cout << " ... All corners found." << std::endl;
 
-      cv::cornerSubPix(depth[i], depthImagePoints[i], cv::Size(11,11), cv::Size(-1,-1),
+      cv::cornerSubPix(depth[i], imagePoints[1][i], cv::Size(11,11), cv::Size(-1,-1),
 		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
 					30, 0.01));
 
       // 検出点を描画する
-      cv::drawChessboardCorners( depth[i], patternSize, ( cv::Mat )( depthImagePoints[i] ), true );
+      cv::drawChessboardCorners( depth[i], patternSize, ( cv::Mat )( imagePoints[1][i] ), true );
       //cv::imshow( "depth", depth[i] );
       //cv::waitKey( 100 );
     } else {
@@ -173,21 +167,21 @@ int main(int argc, char *argv[]){
   // 		       rotationVectors, translationVectors );
   // std::cout << "Camera parameters have been estimated" << std::endl << std::endl;
 
-  // cv::calibrateCamera( worldPoints, depthImagePoints, depth[0].size(), depthCameraMatrix, depthDistCoeffs, 
+  // cv::calibrateCamera( worldPoints, imagePoints[1], depth[0].size(), depthCameraMatrix, depthDistCoeffs, 
   // 		       depthRotationVectors, depthTranslationVectors );
   // std::cout << "Depth camera parameters have been estimated" << std::endl << std::endl;
 
 
   cout << "Running stereo calibration ...\n";
 
-  cv::Mat cameraMatrixS[2], distCoeffsS[2];
-  cameraMatrixS[0] = cv::Mat::eye(3, 3, CV_64F);
-  cameraMatrixS[1] = cv::Mat::eye(3, 3, CV_64F);
+  //  cv::Mat cameraMatrix[2], distCoeffs[2];
+  cameraMatrix[0] = cv::Mat::eye(3, 3, CV_64F);
+  cameraMatrix[1] = cv::Mat::eye(3, 3, CV_64F);
   cv::Mat R, T, E, F;
 
-  double rms = stereoCalibrate(worldPoints, imagePoints, depthImagePoints,
-			       cameraMatrixS[0], distCoeffsS[0],
-			       cameraMatrixS[1], distCoeffsS[1],
+  double rms = stereoCalibrate(worldPoints, imagePoints, imagePoints[1],
+			       cameraMatrix[0], distCoeffs[0],
+			       cameraMatrix[1], distCoeffs[1],
 			       rgb[0].size(), R, T, E, F,
 			       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, 100, 1e-5),
 			       CV_CALIB_FIX_ASPECT_RATIO +
@@ -207,26 +201,26 @@ int main(int argc, char *argv[]){
     cv::vector<cv::Vec3f> lines[2];
     for(int i = 0; i < fileNum; i++ )
     {
-        int npt = (int)imagePoints[i].size();
+        int npt = (int)imagePoints[0][i].size();
 	cv::Mat imgpt[2];
         //for(int k = 0; k < 2; k++ )
         {
-	  imgpt[0] = cv::Mat(imagePoints[i]);
-	  cv::undistortPoints(imgpt[0], imgpt[0], cameraMatrixS[0], distCoeffsS[0], cv::Mat(), cameraMatrixS[0]);
+	  imgpt[0] = cv::Mat(imagePoints[0][i]);
+	  cv::undistortPoints(imgpt[0], imgpt[0], cameraMatrix[0], distCoeffs[0], cv::Mat(), cameraMatrix[0]);
 	  cv::computeCorrespondEpilines(imgpt[0], 1, F, lines[0]);
         }
 	{
-	  imgpt[1] = cv::Mat(depthImagePoints[i]);
-	  cv::undistortPoints(imgpt[1], imgpt[1], cameraMatrixS[1], distCoeffsS[1], cv::Mat(), cameraMatrixS[1]);
+	  imgpt[1] = cv::Mat(imagePoints[1][i]);
+	  cv::undistortPoints(imgpt[1], imgpt[1], cameraMatrix[1], distCoeffs[1], cv::Mat(), cameraMatrix[1]);
 	  cv::computeCorrespondEpilines(imgpt[1], 2, F, lines[1]);
         }
 
         for(int j = 0; j < npt; j++ )
         {
-	  double errij = std::fabs(imagePoints[i][j].x*lines[1][j][0] +
-                                imagePoints[i][j].y*lines[1][j][1] + lines[1][j][2]) +
-                           fabs(depthImagePoints[i][j].x*lines[0][j][0] +
-                                depthImagePoints[i][j].y*lines[0][j][1] + lines[0][j][2]);
+	  double errij = std::fabs(imagePoints[0][i][j].x*lines[1][j][0] +
+                                imagePoints[0][i][j].y*lines[1][j][1] + lines[1][j][2]) +
+                           fabs(imagePoints[1][i][j].x*lines[0][j][0] +
+                                imagePoints[1][i][j].y*lines[0][j][1] + lines[0][j][2]);
             err += errij;
         }
         npoints += npt;
@@ -239,8 +233,8 @@ int main(int argc, char *argv[]){
   cv::FileStorage fs("intrinsics.yml", CV_STORAGE_WRITE);
     if( fs.isOpened() )
     {
-        fs << "M1" << cameraMatrixS[0] << "D1" << distCoeffsS[0] <<
-	  "M2" << cameraMatrixS[1] << "D2" << distCoeffsS[1];
+        fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+	  "M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
         fs.release();
     }
     else
@@ -249,8 +243,8 @@ int main(int argc, char *argv[]){
     cv::Mat R1, R2, P1, P2, Q;
     cv::Rect validRoi[2];
 
-    stereoRectify(cameraMatrixS[0], distCoeffsS[0],
-                  cameraMatrixS[1], distCoeffsS[1],
+    stereoRectify(cameraMatrix[0], distCoeffs[0],
+                  cameraMatrix[1], distCoeffs[1],
                   rgb[0].size(), R, T, R1, R2, P1, P2, Q,
                   cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
 
@@ -291,22 +285,22 @@ int main(int argc, char *argv[]){
     //     }
     //     {
     //         for(int i = 0; i < fileNum; i++ )
-    // 	      std::copy(depthImagePoints[i].begin(), depthImagePoints[i].end(), std::back_inserter(allimgpt[1]));
+    // 	      std::copy(imagePoints[1][i].begin(), imagePoints[1][i].end(), std::back_inserter(allimgpt[1]));
     //     }
 
     //     F = cv::findFundamentalMat(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), cv::FM_8POINT, 0, 0);
     // 	cv::Mat H1, H2;
     // 	cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
 
-    //     R1 = cameraMatrixS[0].inv()*H1*cameraMatrixS[0];
-    //     R2 = cameraMatrixS[1].inv()*H2*cameraMatrixS[1];
-    //     P1 = cameraMatrixS[0];
-    //     P2 = cameraMatrixS[1];
+    //     R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
+    //     R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
+    //     P1 = cameraMatrix[0];
+    //     P2 = cameraMatrix[1];
     // }
 
     //Precompute maps for cv::remap()
-    cv::initUndistortRectifyMap(cameraMatrixS[0], distCoeffsS[0], R1, P1, rgb[0].size(), CV_16SC2, rmap[0][0], rmap[0][1]);
-    cv::initUndistortRectifyMap(cameraMatrixS[1], distCoeffsS[1], R2, P2, rgb[0].size(), CV_16SC2, rmap[1][0], rmap[1][1]);
+    cv::initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, rgb[0].size(), CV_16SC2, rmap[0][0], rmap[0][1]);
+    cv::initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, rgb[0].size(), CV_16SC2, rmap[1][0], rmap[1][1]);
 
     cv::Mat canvas;
     double sf;
@@ -332,8 +326,8 @@ int main(int argc, char *argv[]){
     // load chess board images
   for(int i = 0; i < fileNum; ++i){
     stringstream rgbfilename, depthfilename;
-    rgbfilename << FLAGS_rgbFileName << i << FLAGS_fileType;
-    depthfilename << FLAGS_depthFileName << i  << FLAGS_fileType;
+    rgbfilename << FLAGS_color << i << FLAGS_type;
+    depthfilename << FLAGS_depth << i  << FLAGS_type;
     
     cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
     
