@@ -279,3 +279,68 @@
 /*             break; */
 /*     } */
 /* } */
+
+class CCameraParameters{
+ public:
+  CCameraParameters(){}
+  ~CCameraParameters(){}
+
+  cv::Mat cameraMatrix[2], distCoeffs[2];
+  cv::Mat R, T, R1, R2, P1, P2, Q;
+  cv::Rect validRoi[2];
+  
+  int loadParameters(const std::string &exFileName, const std::string &inFileName);
+  int unDistrotView(cv::Mat & color, cv::Mat &depth);
+
+}
+
+int CCameraParameters::loadParameters(const std::string &exFileName, const std::string &inFileName){
+  // load intrinsic parameters
+  cv::FileStorage fs(inFileName, CV_STORAGE_READ);
+  if( fs.isOpened() )
+    {
+      fs["M1"] >> cameraMatrix[0];
+      fs["D1"] >> distCoeffs[0];
+      fs["M2"] >> cameraMatrix[1];
+      fs["D2"] >> distCoeffs[1];
+      
+      fs.release();
+    }
+  else
+    {
+      cout << "Error: can not save the intrinsic parameters\n";
+      return -1;
+    }
+  
+  // load extrinsic parameters
+  fs.open(exFileName, CV_STORAGE_READ);
+  if( fs.isOpened() )
+    {
+      fs["R"] >> R;
+      fs["T"] >> T;
+      fs["R1"] >> R1;
+      fs["R2"] >> R2;
+      fs["P1"] >> P1;
+      fs["P2"] >> P2;
+      fs["Q"] >> Q;
+      fs.release();
+    }
+  else
+    {
+      cout << "Error: can not save the extrinsic parameters\n";
+      return -1;
+    }
+
+  return 0;
+
+}
+
+int unDistrotView(cv::Mat & color, cv::Mat &depth){
+  cv::Mat udistColor, udistDepth;
+
+  cv::undistort(color, udistColor, cameraMatrix[0], distCoeffs[0]);
+  cv::undistort(depth, udistDepth, cameraMatrix[1], distCoeffs[1]);
+
+  udistColor.copyTo(color);
+  udistDepth(cv::Rect(40, 43, 498, 498 / 4 * 3)).copyTo(depth);
+}

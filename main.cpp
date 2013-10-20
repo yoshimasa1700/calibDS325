@@ -179,7 +179,7 @@ int main(int argc, char *argv[]){
   cameraMatrix[1] = cv::Mat::eye(3, 3, CV_64F);
   cv::Mat R, T, E, F;
 
-  double rms = stereoCalibrate(worldPoints, imagePoints, imagePoints[1],
+  double rms = stereoCalibrate(worldPoints, imagePoints[0], imagePoints[1],
 			       cameraMatrix[0], distCoeffs[0],
 			       cameraMatrix[1], distCoeffs[1],
 			       rgb[0].size(), R, T, E, F,
