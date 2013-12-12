@@ -9,6 +9,8 @@ using namespace google;
 #define MAX_DEPTH 1000
 #define MIN_DEPTH 0
 
+double g_squareSize = 50.0;
+
 // definition for gflags
 DEFINE_string(color, "./calibData/color_", "default file name");
 DEFINE_string(depth, "./calibData/depth_", "defalut depth file name");
@@ -21,7 +23,7 @@ int main(int argc, char *argv[]){
   cv::vector<cv::Mat> rgb(0), depth(0); // checker pattern
   int fileNum = FLAGS_num;
   const cv::Size patternSize(9, 6);
-  cv::vector<cv::vector<cv::Point3f> > worldPoints(fileNum);
+  cv::vector<cv::vector<cv::Point3f> > worldPoints;//(fileNum);
   cv::vector<cv::vector<cv::vector<cv::Point2f> > > imagePoints(2);	
   cv::TermCriteria criteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.001 );
   
@@ -50,7 +52,6 @@ int main(int argc, char *argv[]){
     cv::Mat tempRGB = cv::imread(rgbfilename.str(), 0);
     //std::cout << tempRGB.channels() << std::endl;
     //cv::cvtColor(tempRGB, tempRGB, CV_RGB2GRAY,3);
-    
     rgb.push_back(tempRGB);
 
 
@@ -63,8 +64,11 @@ int main(int argc, char *argv[]){
     cv::min(tempDepth, maxDist, tempDepth);
     tempDepth -= minDist;
     cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
+    cv::Mat roiTempDepth;
 
-    depth.push_back(tempDepth);
+    cv::resize(tempDepth(cv::Rect(40, 43,498,498 / 4 * 3)), roiTempDepth, cv::Size(640, 480));
+
+    depth.push_back(roiTempDepth);
 
     std::cout << "loaded" << std::endl;
 
@@ -97,7 +101,7 @@ int main(int argc, char *argv[]){
 
       cv::cornerSubPix(rgb[i], imagePoints[0][i], cv::Size(11,11), cv::Size(-1,-1),
 		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
-                                      30, 0.01));
+					30, 0.01));
 
       cv::cornerSubPix(depth[i], imagePoints[1][i], cv::Size(11,11), cv::Size(-1,-1),
    		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
@@ -112,19 +116,28 @@ int main(int argc, char *argv[]){
       std::cout << " ... at least 1 corner not found." << std::endl;
       rgb.erase(rgb.begin() + i);
       depth.erase(depth.begin() + i);
-      imagePoints.erase(imagePoints.begin() + i);
+      imagePoints[0].erase(imagePoints[0].begin() + i);
+      imagePoints[1].erase(imagePoints[1].begin() + i);
+      //      fileNum--;
+      i--;
       cv::waitKey( 100 );
     }
   }
   
-  // reset file num
+  // // reset file num
   fileNum = rgb.size();
+  // std::cout << fileNum << std::endl;
+  // std::cout << depth.size() << std::endl;
+  // std::cout << imagePoints[0].size() << std::endl;
+  // std::cout << imagePoints[1].size() << std::endl;
 
+  worldPoints.clear();
+  worldPoints.resize(fileNum);
   for(int i = 0; i < fileNum; i++ )
     {
-        for(int j = 0; j < patternSize.height; j++ )
-            for(int k = 0; k < patternSize.width; k++ )
-	      worldPoints[i].push_back(cv::Point3f(k*0.05, j*0.05, 0));
+      for(int j = 0; j < patternSize.height; j++ )
+	for(int k = 0; k < patternSize.width; k++ )
+	  worldPoints[i].push_back(cv::Point3f(k*g_squareSize, j*g_squareSize, 0));
     }
   
   // これまでの値を使ってキャリブレーション
@@ -149,178 +162,163 @@ int main(int argc, char *argv[]){
 			       cameraMatrix[1], distCoeffs[1],
 			       rgb[0].size(), R, T, E, F,
 			       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, 100, 1e-5),
-			       CV_CALIB_FIX_ASPECT_RATIO +
-			       CV_CALIB_ZERO_TANGENT_DIST +
-			       CV_CALIB_SAME_FOCAL_LENGTH +
+			       			       CV_CALIB_USE_INTRINSIC_GUESS +
+			       			       CV_CALIB_FIX_ASPECT_RATIO +
+			       			       CV_CALIB_ZERO_TANGENT_DIST +
+			       //CV_CALIB_SAME_FOCAL_LENGTH +
 			       CV_CALIB_RATIONAL_MODEL +
-			       CV_CALIB_FIX_K3 + CV_CALIB_FIX_K4 + CV_CALIB_FIX_K5);
+			       CV_CALIB_FIX_K3 + CV_CALIB_FIX_K4 + CV_CALIB_FIX_K5
+			       );
   cout << "done with RMS error=" << rms << endl;
 
-// CALIBRATION QUALITY CHECK
-// because the output fundamental matrix implicitly
-// includes all the output information,
-// we can check the quality of calibration using the
-// epipolar geometry constraint: m2^t*F*m1=0
-    double err = 0;
-    int npoints = 0;
-    cv::vector<cv::Vec3f> lines[2];
-    for(int i = 0; i < fileNum; i++ )
+  // CALIBRATION QUALITY CHECK
+  // because the output fundamental matrix implicitly
+  // includes all the output information,
+  // we can check the quality of calibration using the
+  // epipolar geometry constraint: m2^t*F*m1=0
+  double err = 0;
+  int npoints = 0;
+  cv::vector<cv::Vec3f> lines[2];
+  for(int i = 0; i < fileNum; i++ )
     {
-        int npt = (int)imagePoints[0][i].size();
-	cv::Mat imgpt[2];
-        //for(int k = 0; k < 2; k++ )
-        {
-	  imgpt[0] = cv::Mat(imagePoints[0][i]);
-	  cv::undistortPoints(imgpt[0], imgpt[0], cameraMatrix[0], distCoeffs[0], cv::Mat(), cameraMatrix[0]);
-	  cv::computeCorrespondEpilines(imgpt[0], 1, F, lines[0]);
-        }
-	{
-	  imgpt[1] = cv::Mat(imagePoints[1][i]);
-	  cv::undistortPoints(imgpt[1], imgpt[1], cameraMatrix[1], distCoeffs[1], cv::Mat(), cameraMatrix[1]);
-	  cv::computeCorrespondEpilines(imgpt[1], 2, F, lines[1]);
-        }
+      int npt = (int)imagePoints[0][i].size();
+      cv::Mat imgpt[2];
+      //for(int k = 0; k < 2; k++ )
+      {
+	imgpt[0] = cv::Mat(imagePoints[0][i]);
+	cv::undistortPoints(imgpt[0], imgpt[0], cameraMatrix[0], distCoeffs[0], cv::Mat(), cameraMatrix[0]);
+	cv::computeCorrespondEpilines(imgpt[0], 1, F, lines[0]);
+      }
+      {
+	imgpt[1] = cv::Mat(imagePoints[1][i]);
+	cv::undistortPoints(imgpt[1], imgpt[1], cameraMatrix[1], distCoeffs[1], cv::Mat(), cameraMatrix[1]);
+	cv::computeCorrespondEpilines(imgpt[1], 2, F, lines[1]);
+      }
 
-        for(int j = 0; j < npt; j++ )
+      for(int j = 0; j < npt; j++ )
         {
 	  double errij = std::fabs(imagePoints[0][i][j].x*lines[1][j][0] +
-                                imagePoints[0][i][j].y*lines[1][j][1] + lines[1][j][2]) +
-                           fabs(imagePoints[1][i][j].x*lines[0][j][0] +
-                                imagePoints[1][i][j].y*lines[0][j][1] + lines[0][j][2]);
-            err += errij;
+				   imagePoints[0][i][j].y*lines[1][j][1] + lines[1][j][2]) +
+	    fabs(imagePoints[1][i][j].x*lines[0][j][0] +
+		 imagePoints[1][i][j].y*lines[0][j][1] + lines[0][j][2]);
+	  err += errij;
         }
-        npoints += npt;
+      npoints += npt;
     }
-    cout << "average reprojection err = " <<  err/npoints << endl;
+  cout << "average reprojection err = " <<  err/npoints << endl;
 
   cv::waitKey(0);
 
   // save intrinsic parameters
   cv::FileStorage fs("intrinsics.yml", CV_STORAGE_WRITE);
-    if( fs.isOpened() )
+  if( fs.isOpened() )
     {
-        fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
-	  "M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
-        fs.release();
+      fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+	"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
+      fs.release();
     }
-    else
-        cout << "Error: can not save the intrinsic parameters\n";
+  else
+    cout << "Error: can not save the intrinsic parameters\n";
 
-    cv::Mat R1, R2, P1, P2, Q;
-    cv::Rect validRoi[2];
+  cv::Mat R1, R2, P1, P2, Q;
+  cv::Rect validRoi[2];
 
-    stereoRectify(cameraMatrix[0], distCoeffs[0],
+  stereoRectify(cameraMatrix[0], distCoeffs[0],
                   cameraMatrix[1], distCoeffs[1],
-                  rgb[0].size(), R, T, R1, R2, P1, P2, Q,
-                  cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
+		rgb[0].size(), R, T, R1, R2, P1, P2, Q,
+		cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
 
-    fs.open("extrinsics.yml", CV_STORAGE_WRITE);
-    if( fs.isOpened() )
+  cv::vector<cv::Point2f> allimgpt[2];
+  for(int k = 0; k < 2; k++ )
     {
-        fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
-        fs.release();
+      for(int i = 0; i < fileNum; i++ )
+	std::copy(imagePoints[k][i].begin(), imagePoints[k][i].end(), back_inserter(allimgpt[k]));
     }
-    else
-        cout << "Error: can not save the intrinsic parameters\n";
 
-    //カメラ内部パラメータの計算
-        double apertureWidth = 0, apertureHeight = 0 ;  // センサの物理的な幅・高さ
-        double fovx = 0, fovy = 0;                                              // 出力される水平（垂直）軸にそった画角（度単位）
-        double focalLength = 0;                                                 // mm単位で表されたレンズの焦点距離
-        cv::Point2d principalPoint(0,0);                             // ピクセル単位で表されたレンズの焦点距離
-        double aspectRatio = 0;        
+  F = cv::findFundamentalMat(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), cv::FM_8POINT, 0, 0);
+  cv::Mat H1, H2;
+  cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
+  
+  // R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
+  // R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
+  // P1 = cameraMatrix[0];
+  // P2 = cameraMatrix[1];
 
-
-    cv::calibrationMatrixValues( cameraMatrix[0], rgb[0].size(), apertureWidth, apertureHeight,
-                fovx, fovy, focalLength, principalPoint, aspectRatio );
-
-        cout << "Calc Camera Param" << endl;
-
-        // XMLファイルへ結果を出力する
-        cout << "Start Output Xml File" << endl;
-
-        cv::FileStorage wfs("./cameraparam.xml", cv::FileStorage::WRITE);
-        //wfs << XMLTAG_CAMERAMAT << cameraMatrix;
-        //wfs << XMLTAG_DISTCOEFFS << distCoeffs;
-
-        wfs << "aperture_Width" << apertureWidth;
-        wfs << "aperture_Height" << apertureHeight;
-        wfs << "fov_x" << fovx;
-        wfs << "fov_y" << fovy;
-        wfs << "focal_Length" << focalLength;
-        wfs << "principal_Point" << principalPoint;
-        wfs << "aspect_Ratio" << aspectRatio;
-        wfs.release();
-
-        cout << "Finish Output Xml File" << endl;
-
-
-    // OpenCV can handle left-right
-    // or up-down camera arrangements
-    //bool isVerticalStereo = fabs(P2.at<double>(1, 3)) > fabs(P2.at<double>(0, 3));
-
-// COMPUTE AND DISPLAY RECTIFICATION
-    // if( !showRectified )
-    //     return;
-
-    cv::Mat rmap[2][2];
-// IF BY CALIBRATED (BOUGUET'S METHOD)
-    // if( useCalibrated )
-    // {
-    //     // we already computed everything
-    // }
-// OR ELSE HARTLEY'S METHOD
-//    else
- // use intrinsic parameters of each camera, but
- // compute the rectification transformation directly
- // from the fundamental matrix
-    // {
-    //   cv::vector<cv::Point2f> allimgpt[2];
-    //   //for(int k = 0; k < 2; k++ )
-    //     {
-    //         for(int i = 0; i < fileNum; i++ )
-    // 	      std::copy(imagePoints[i].begin(), imagePoints[i].end(), std::back_inserter(allimgpt[0]));
-    //     }
-    //     {
-    //         for(int i = 0; i < fileNum; i++ )
-    // 	      std::copy(imagePoints[1][i].begin(), imagePoints[1][i].end(), std::back_inserter(allimgpt[1]));
-    //     }
-
-    //     F = cv::findFundamentalMat(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), cv::FM_8POINT, 0, 0);
-    // 	cv::Mat H1, H2;
-    // 	cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
-
-    //     R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
-    //     R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
-    //     P1 = cameraMatrix[0];
-    //     P2 = cameraMatrix[1];
-    // }
-
+  cv::Mat rmap[2][2];
     //Precompute maps for cv::remap()
-    cv::initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, rgb[0].size(), CV_16SC2, rmap[0][0], rmap[0][1]);
-    cv::initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, rgb[0].size(), CV_16SC2, rmap[1][0], rmap[1][1]);
 
-    cv::Mat canvas;
-    double sf;
-    int w, h;
-    // if( !isVerticalStereo )
-    // {
-    sf = 600./MAX(rgb[0].size().width, rgb[0].size().height);
-    w = cvRound(rgb[0].size().width*sf);
-    h = cvRound(rgb[0].size().height*sf);
-    canvas.create(h, w*2, CV_8UC3);
-    // }
-    // else
-    // {
-    //     sf = 300./MAX(rgb[0].size().width, rgb[0].size().height);
-    //     w = cvRound(rgb[0].size().width*sf);
-    //     h = cvRound(rgb[0].size().height*sf);
-    //     canvas.create(h*2, w, CV_8UC3);
-    // }
+  cv::Mat nonR1 = cv::Mat::eye(R1.size(),R1.type());
+  cv::Mat nonR2 = cv::Mat::eye(R1.size(),R2.type());
 
-  depth.clear();
-  rgb.clear();
+
+  cv::initUndistortRectifyMap(
+			      cameraMatrix[0], 
+			      distCoeffs[0], 
+			      R1, 
+			      P1, 
+			      rgb[0].size(), 
+			      CV_16SC2, 
+			      rmap[0][0], rmap[0][1]
+			      );
+  cv::initUndistortRectifyMap(
+			      cameraMatrix[1], 
+			      distCoeffs[1], 
+			      R2, 
+			      P2, 
+			      rgb[0].size(), 
+			      CV_16SC2, 
+			      rmap[1][0], 
+			      rmap[1][1]
+			      );
+
+  // stereoRectify(cameraMatrix[0], distCoeffs[0],
+  // 		cameraMatrix[1], distCoeffs[1],
+  // 		rgb[0].size(), R, T, R1, R2, P1, P2, Q,
+  // 		cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
+
+  fs.open("extrinsics.yml", CV_STORAGE_WRITE);
+  if( fs.isOpened() )
+    {
+      fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+      fs.release();
+    }
+  else
+    cout << "Error: can not save the intrinsic parameters\n";
+
+  //カメラ内部パラメータの計算
+  double apertureWidth = 0, apertureHeight = 0 ;  // センサの物理的な幅・高さ
+  double fovx = 0, fovy = 0;                                              // 出力される水平（垂直）軸にそった画角（度単位）
+  double focalLength = 0;                                                 // mm単位で表されたレンズの焦点距離
+  cv::Point2d principalPoint(0,0);                             // ピクセル単位で表されたレンズの焦点距離
+  double aspectRatio = 0;        
+
+
+  cv::calibrationMatrixValues( cameraMatrix[0], rgb[0].size(), apertureWidth, apertureHeight,
+			       fovx, fovy, focalLength, principalPoint, aspectRatio );
+
+  cout << "Calc Camera Param" << endl;
+
+  // XMLファイルへ結果を出力する
+  cout << "Start Output Xml File" << endl;
+
+  cv::FileStorage wfs("./cameraparam.xml", cv::FileStorage::WRITE);
+  //wfs << XMLTAG_CAMERAMAT << cameraMatrix;
+  //wfs << XMLTAG_DISTCOEFFS << distCoeffs;
+
+  wfs << "aperture_Width" << apertureWidth;
+  wfs << "aperture_Height" << apertureHeight;
+  wfs << "fov_x" << fovx;
+  wfs << "fov_y" << fovy;
+  wfs << "focal_Length" << focalLength;
+  wfs << "principal_Point" << principalPoint;
+  wfs << "aspect_Ratio" << aspectRatio;
+  wfs.release();
+
+  cout << "Finish Output Xml File" << endl;
 
   // load chess board images
+  depth.clear();
+  rgb.clear();
   std::cout << "load image for quality check." << std::endl;
   for(int i = 0; i < fileNum; ++i){
     stringstream rgbfilename, depthfilename;
@@ -346,8 +344,12 @@ int main(int argc, char *argv[]){
     cv::min(tempDepth, maxDist, tempDepth);
     tempDepth -= minDist;
     cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
+    cv::Mat roiTempDepth;
+    cv::resize(tempDepth(cv::Rect(40, 43,498,498 / 4 * 3)), roiTempDepth, cv::Size(640, 480));
 
-    depth.push_back(tempDepth);
+    depth.push_back(roiTempDepth);
+
+    //    depth.push_back(tempDepth);
 
     std::cout << "loaded" << std::endl;
 
@@ -356,70 +358,99 @@ int main(int argc, char *argv[]){
     //cv::waitKey(0);
   }
 
+  // 歪み補正した画像を表示
+  std::cout << "Undistorted images" << std::endl;
+  cv::Mat	undistorted, depthUndistorted;
+  cv::namedWindow( "result" );
+  cv::namedWindow( "result_depth" );
+  for( int i = 0; i < fileNum; i++ ) {
+    cv::undistort( rgb[i], undistorted, cameraMatrix[0], distCoeffs[0] );
+    cv::undistort( depth[i], depthUndistorted, cameraMatrix[1], distCoeffs[1] );
+
+    cv::imshow( "result", undistorted );
+    cv::imshow( "rgb", rgb[i] );
+
+    cv::imshow( "result_depth", depthUndistorted );
+    cv::imshow( "depth", depth[i] );
+
+    cv::waitKey( 0 );
+  }
+
+  // cv::Mat rmap[2][2];
+
+  // //Precompute maps for cv::remap()
+  // cv::initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, rgb[0].size(), CV_16SC2, rmap[0][0], rmap[0][1]);
+  // cv::initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, rgb[0].size(), CV_16SC2, rmap[1][0], rmap[1][1]);
+
+  cv::Mat canvas;
+  double sf;
+  int w, h;
+  // if( !isVerticalStereo )
+  // {
+  sf = 600./MAX(rgb[0].size().width, rgb[0].size().height);
+  w = cvRound(rgb[0].size().width*sf);
+  h = cvRound(rgb[0].size().height*sf);
+  canvas.create(h, w*2, CV_8UC3);
+  // }
+  // else
+  // {
+  //     sf = 300./MAX(rgb[0].size().width, rgb[0].size().height);
+  //     w = cvRound(rgb[0].size().width*sf);
+  //     h = cvRound(rgb[0].size().height*sf);
+  //     canvas.create(h*2, w, CV_8UC3);
+  // }
+
+
+  
+
   cv::namedWindow("rectified");
 
-    for(int i = 0; i < fileNum; i++ )
-      {
-        for(int k = 0; k < 2; k++ )
-	  {
-	    if(k == 0){
-	      cv::Mat img = rgb[i].clone(), rimg, cimg;
+  for(int i = 0; i < fileNum; i++ )
+    {
+      for(int k = 0; k < 2; k++ )
+	{
+	  if(k == 0){
+	    cv::Mat img = rgb[i].clone(), rimg, cimg;
 
-	      cv::remap(img, rimg, rmap[k][0], rmap[k][1], CV_INTER_LINEAR);
-	      cv::cvtColor(rimg, cimg, CV_GRAY2BGR);
+	    cv::remap(img, rimg, rmap[k][0], rmap[k][1], CV_INTER_LINEAR);
+	    cv::cvtColor(rimg, cimg, CV_GRAY2BGR);
 
 
-	      cv::Mat canvasPart = canvas(cv::Rect(w * k, 0, w, h));
-	      cv::resize(cimg, canvasPart, canvasPart.size(), 0, 0, CV_INTER_AREA);
-	      // if( useCalibrated )
-	      	{
-		  cv::Rect vroi(cvRound(validRoi[k].x*sf), cvRound(validRoi[k].y*sf),
+	    cv::Mat canvasPart = canvas(cv::Rect(w * k, 0, w, h));
+	    cv::resize(cimg, canvasPart, canvasPart.size(), 0, 0, CV_INTER_AREA);
+	    // if( useCalibrated )
+	    
+	      cv::Rect vroi(cvRound(validRoi[k].x*sf), cvRound(validRoi[k].y*sf),
 	      		    cvRound(validRoi[k].width*sf), cvRound(validRoi[k].height*sf));
-		  cv::rectangle(canvasPart, vroi, cv::Scalar(0,0,255), 3, 8);
-	      	}
-	    }else{
-	      cv::Mat img = depth[i].clone(), rimg, cimg;
-	      cv::remap(img, rimg, rmap[k][0], rmap[k][1], CV_INTER_LINEAR);
-	      cvtColor(rimg, cimg, CV_GRAY2BGR);
-	      cv::Mat canvasPart = canvas(cv::Rect(w * k, 0, w, h));
-	      cv::resize(cimg, canvasPart, canvasPart.size(), 0, 0, CV_INTER_AREA);
-	      	{
-		  cv::Rect vroi(cvRound(validRoi[k].x*sf), cvRound(validRoi[k].y*sf),
+	      cv::rectangle(canvasPart, vroi, cv::Scalar(0,0,255), 3, 8);
+	    
+	  }else{
+	    cv::Mat img = depth[i].clone(), rimg, cimg;
+	    cv::remap(img, rimg, rmap[k][0], rmap[k][1], CV_INTER_LINEAR);
+	    cvtColor(rimg, cimg, CV_GRAY2BGR);
+	    cv::Mat canvasPart = canvas(cv::Rect(w * k, 0, w, h));
+	    cv::resize(cimg, canvasPart, canvasPart.size(), 0, 0, CV_INTER_AREA);
+	    
+	      cv::Rect vroi(cvRound(validRoi[k].x*sf), cvRound(validRoi[k].y*sf),
 	      		    cvRound(validRoi[k].width*sf), cvRound(validRoi[k].height*sf));
-		  cv::rectangle(canvasPart, vroi, cv::Scalar(0,0,255), 3, 8);
-	      	}
-	    }
+	      cv::rectangle(canvasPart, vroi, cv::Scalar(0,0,255), 3, 8);
+	    
 	  }
+	}
 
-        //if( !isVerticalStereo )
-            for(int j = 0; j < canvas.rows; j += 16 )
-	      cv::line(canvas, cv::Point(0, j), cv::Point(canvas.cols, j), cv::Scalar(0, 255, 0), 1, 8);
-	    //else
-            //for(int j = 0; j < canvas.cols; j += 16 )
-	    //cv::line(canvas, cv::Point(j, 0), cv::Point(j, canvas.rows), cv::Scalar(0, 255, 0), 1, 8);
-	    cv::imshow("rectified", canvas);
-        char c = (char)cv::waitKey(0);
-        if( c == 27 || c == 'q' || c == 'Q' )
-            break;
+      //if( !isVerticalStereo )
+      for(int j = 0; j < canvas.rows; j += 16 )
+	cv::line(canvas, cv::Point(0, j), cv::Point(canvas.cols, j), cv::Scalar(0, 255, 0), 1, 8);
+      //else
+      //for(int j = 0; j < canvas.cols; j += 16 )
+      //cv::line(canvas, cv::Point(j, 0), cv::Point(j, canvas.rows), cv::Scalar(0, 255, 0), 1, 8);
+      cv::imshow("rectified", canvas);
+      char c = (char)cv::waitKey(0);
+      if( c == 27 || c == 'q' || c == 'Q' )
+	break;
     }
 
-  // 歪み補正した画像を表示
-  // std::cout << "Undistorted images" << std::endl;
-  // cv::Mat	undistorted, depthUndistorted;
-  // cv::namedWindow( "result" );
-  // cv::namedWindow( "result_depth" );
-  // for( int i = 0; i < fileNum; i++ ) {
-  //   cv::undistort( rgb[i], undistorted, cameraMatrix, distCoeffs );
-  //   cv::undistort( depth[i], depthUndistorted, depthCameraMatrix, depthDistCoeffs );
 
-  //   cv::imshow( "result", undistorted );
-  //   cv::imshow( "rgb", rgb[i] );
-
-  //   cv::imshow( "result_depth", depthUndistorted );
-  //   cv::imshow( "depth", depth[i] );
-
-  //   cv::waitKey( 0 );
-  // }
 
   cv::destroyAllWindows();
 
