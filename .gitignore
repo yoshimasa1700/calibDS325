@@ -13,3 +13,6 @@ HFMD_eval.creator.user*
 #*
 dataset/
 install_manifest.txt
+calibData/
+intrinsics.yml
+extrinsics.yml

@@ -10,8 +10,8 @@ using namespace google;
 #define MIN_DEPTH 0
 
 // definition for gflags
-DEFINE_string(color, "rgb_", "default file name");
-DEFINE_string(depth, "depth_", "defalut depth file name");
+DEFINE_string(color, "./calibData/color_", "default file name");
+DEFINE_string(depth, "./calibData/depth_", "defalut depth file name");
 DEFINE_string(type, ".png", "default file type");
 DEFINE_int32(num, 1, "default file num");
 
@@ -58,8 +58,8 @@ int main(int argc, char *argv[]){
 
     std::cout << "loaded" << std::endl;
 
-    //cv::imshow("rgb",rgb[i]);
-    //cv::waitKey(0);
+    cv::imshow("rgb",rgb[i]);
+    cv::waitKey(0);
   }
 
   cout << "total image num is " << fileNum << endl;
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]){
     {
         for(int j = 0; j < patternSize.height; j++ )
             for(int k = 0; k < patternSize.width; k++ )
-	      worldPoints[i].push_back(cv::Point3f(j*1.f, k*1.f, 0));
+	      worldPoints[i].push_back(cv::Point3f(k*0.05, j*0.05, 0));
     }
   
   // これまでの値を使ってキャリブレーション
@@ -257,6 +257,38 @@ int main(int argc, char *argv[]){
     }
     else
         cout << "Error: can not save the intrinsic parameters\n";
+
+    //カメラ内部パラメータの計算
+        double apertureWidth = 0, apertureHeight = 0 ;  // センサの物理的な幅・高さ
+        double fovx = 0, fovy = 0;                                              // 出力される水平（垂直）軸にそった画角（度単位）
+        double focalLength = 0;                                                 // mm単位で表されたレンズの焦点距離
+        cv::Point2d principalPoint(0,0);                             // ピクセル単位で表されたレンズの焦点距離
+        double aspectRatio = 0;        
+
+
+    cv::calibrationMatrixValues( cameraMatrix[0], rgb[0].size(), apertureWidth, apertureHeight,
+                fovx, fovy, focalLength, principalPoint, aspectRatio );
+
+        cout << "Calc Camera Param" << endl;
+
+        // XMLファイルへ結果を出力する
+        cout << "Start Output Xml File" << endl;
+
+        cv::FileStorage wfs("./cameraparam.xml", cv::FileStorage::WRITE);
+        //wfs << XMLTAG_CAMERAMAT << cameraMatrix;
+        //wfs << XMLTAG_DISTCOEFFS << distCoeffs;
+
+        wfs << "aperture_Width" << apertureWidth;
+        wfs << "aperture_Height" << apertureHeight;
+        wfs << "fov_x" << fovx;
+        wfs << "fov_y" << fovy;
+        wfs << "focal_Length" << focalLength;
+        wfs << "principal_Point" << principalPoint;
+        wfs << "aspect_Ratio" << aspectRatio;
+        wfs.release();
+
+        cout << "Finish Output Xml File" << endl;
+
 
     // OpenCV can handle left-right
     // or up-down camera arrangements
