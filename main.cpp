@@ -34,13 +34,6 @@ int main(int argc, char *argv[]){
   cv::vector<cv::Mat> rotationVectors(2);	// 撮影画像ごとに得られる回転ベクトル
   cv::vector<cv::Mat> translationVectors(2);	// 撮影画像ごとに得られる平行移動ベクトル
 
-  // カメラパラメータ行列
-  //cv::Mat depthCameraMatrix;		// 内部パラメータ行列
-  //cv::Mat depthDistCoeffs;		// レンズ歪み行列
-  //cv::vector<cv::Mat> depthRotationVectors;	// 撮影画像ごとに得られる回転ベクトル
-  //cv::vector<cv::Mat> depthTranslationVectors;	// 撮影画像ごとに得られる平行移動ベクトル
-
-
   // create windows
   cv::namedWindow("rgb");
   cv::namedWindow("depth");
@@ -53,13 +46,31 @@ int main(int argc, char *argv[]){
     
     cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
 
-    rgb.push_back(cv::imread(rgbfilename.str(), 0));
-    depth.push_back(cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH));
+    // load RGB image
+    cv::Mat tempRGB = cv::imread(rgbfilename.str(), 0);
+    //std::cout << tempRGB.channels() << std::endl;
+    //cv::cvtColor(tempRGB, tempRGB, CV_RGB2GRAY,3);
+    
+    rgb.push_back(tempRGB);
+
+
+    // load depth image
+    cv::Mat tempDepth = cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH);
+    tempDepth.convertTo(tempDepth, CV_8U, 255.0/1000.0);
+    //cv::cvtColor(tempDepth, tempDepth, CV_GRAY2RGB, 3);
+    cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
+    cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
+    cv::min(tempDepth, maxDist, tempDepth);
+    tempDepth -= minDist;
+    cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
+
+    depth.push_back(tempDepth);
 
     std::cout << "loaded" << std::endl;
 
     cv::imshow("rgb",rgb[i]);
-    cv::waitKey(0);
+    cv::imshow("depth",depth[i]);
+    cv::waitKey(100);
   }
 
   cout << "total image num is " << fileNum << endl;
@@ -69,92 +80,45 @@ int main(int argc, char *argv[]){
   // find chessboard pattern from rgb image
   for(int i = 0; i < fileNum; ++i){
     cout << i << endl;
-
-    // convert image to gray scale(not nessesary)
-    //cv::Mat grayImg;
-
-    // std::cout << rgb[i].channels() << std::endl;
-    // cv::cvtColor(rgb[i], grayImg, CV_BGR2GRAY);
-    // cv::normalize(grayImg, grayImg, 0, 255, cv::NORM_MINMAX);
-    // cv::imshow("rgb", grayImg);
-
-
     
-    if( cv::findChessboardCorners( rgb[i], patternSize, imagePoints[0][i],CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
+    if( cv::findChessboardCorners( rgb[i], 
+				   patternSize, 
+				   imagePoints[0][i],
+				   CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE 
+				   ) && 
+	cv::findChessboardCorners( depth[i], 
+				   patternSize, 
+				   imagePoints[1][i] ,
+				   CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE 
+				   ) ) {
     
 
-  std::cout << " ... All corners found." << std::endl;
+      std::cout << " ... All corners found." << std::endl;
 
       cv::cornerSubPix(rgb[i], imagePoints[0][i], cv::Size(11,11), cv::Size(-1,-1),
 		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
                                       30, 0.01));
-      std::cout << "koko" << std::endl;
-      // 検出点を描画する
-      cv::drawChessboardCorners( rgb[i], patternSize, ( cv::Mat )( imagePoints[0][i] ), true );
-      //cv::imshow( "rgb", rgb[i] );
-      //cv::waitKey( 500 );
-    } else {
-      std::cout << " ... at least 1 corner not found." << std::endl;
-      //rgb.erase(rgb.begin() + i);
-      //imagePoints.erase(imagePoints.begin() + i);
-      cv::waitKey( 100 );
-    }
-  }
-
-  
-
-  // find chessboard pattern from depth file
-  for(int i = 0; i < fileNum; ++i){  
-    cv::Mat maxDist = cv::Mat::ones(depth[i].rows, depth[i].cols, CV_16U) * MAX_DEPTH;
-    cv::Mat minDist = cv::Mat::ones(depth[i].rows, depth[i].cols, CV_16U) * MIN_DEPTH;
-  
-
-    cv::min(depth[i], maxDist, depth[i]);
-    depth[i] -= minDist;
-
-    depth[i].convertTo(depth[i], CV_8UC1, 255.0 / (MAX_DEPTH - MIN_DEPTH));
-    cv::resize(depth[i], depth[i], cv::Size(), 2.0,2.0);
-
-
-
-    //cv::threshold(depth[i], depth[i], 200, 255.0, cv::THRESH_BINARY);
-
-    //cv::vector<cv::Point2f> depthCorners;
-    //cv::goodFeaturesToTrack(depth[i], depthCorners, 80, 0.01, 5);
-
-    // cv::vector<cv::Point2f>::iterator it_corner = depthCorners.begin();
-    // for(; it_corner!=depthCorners.end(); ++it_corner) {
-    //   cv::circle(depth[i], cv::Point(it_corner->x, it_corner->y), 1, cv::Scalar(0,200,255), -1);
-    //   cv::circle(depth[i], cv::Point(it_corner->x, it_corner->y), 8, cv::Scalar(0,200,255));
-    // }
-
-    cv::imshow("depth", depth[i]);
-    cv::waitKey(100);
-    
-    if( cv::findChessboardCorners( depth[i], patternSize, imagePoints[1][i] ,CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_NORMALIZE_IMAGE ) ) {
-      std::cout << " ... All corners found." << std::endl;
 
       cv::cornerSubPix(depth[i], imagePoints[1][i], cv::Size(11,11), cv::Size(-1,-1),
-		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
-					30, 0.01));
-
+   		       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS,
+   					30, 0.01));
       // 検出点を描画する
+      cv::drawChessboardCorners( rgb[i], patternSize, ( cv::Mat )( imagePoints[0][i] ), true );
       cv::drawChessboardCorners( depth[i], patternSize, ( cv::Mat )( imagePoints[1][i] ), true );
-      //cv::imshow( "depth", depth[i] );
-      //cv::waitKey( 100 );
+      cv::imshow( "rgb", rgb[i] );
+      cv::imshow("depth", depth[i]);
+      cv::waitKey( 100 );
     } else {
       std::cout << " ... at least 1 corner not found." << std::endl;
+      rgb.erase(rgb.begin() + i);
+      depth.erase(depth.begin() + i);
+      imagePoints.erase(imagePoints.begin() + i);
       cv::waitKey( 100 );
     }
   }
-
-  // for( int i = 0; i < fileNum; i++ ) {
-  //   for( int j = 0 ; j < patternSize.area(); j++ ) {
-  //     worldPoints[i].push_back( cv::Point3f(	static_cast<float>( j % patternSize.width * 10 ), 
-  // 						static_cast<float>( j / patternSize.width * 10 ), 
-  // 						0.0 ) );
-  //   }
-  // }
+  
+  // reset file num
+  fileNum = rgb.size();
 
   for(int i = 0; i < fileNum; i++ )
     {
@@ -356,56 +320,43 @@ int main(int argc, char *argv[]){
   depth.clear();
   rgb.clear();
 
-    // load chess board images
+  // load chess board images
+  std::cout << "load image for quality check." << std::endl;
   for(int i = 0; i < fileNum; ++i){
     stringstream rgbfilename, depthfilename;
     rgbfilename << FLAGS_color << i << FLAGS_type;
-    depthfilename << FLAGS_depth << i  << FLAGS_type;
+    depthfilename << FLAGS_depth << i << FLAGS_type;
     
     cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
+
+    // load RGB image
+    cv::Mat tempRGB = cv::imread(rgbfilename.str(), 0);
+    //std::cout << tempRGB.channels() << std::endl;
+    //cv::cvtColor(tempRGB, tempRGB, CV_RGB2GRAY,3);
     
-    rgb.push_back(cv::imread(rgbfilename.str(),0));
-    depth.push_back(cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH));
+    rgb.push_back(tempRGB);
+
+
+    // load depth image
+    cv::Mat tempDepth = cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH);
+    tempDepth.convertTo(tempDepth, CV_8U, 255.0/1000.0);
+    //cv::cvtColor(tempDepth, tempDepth, CV_GRAY2RGB, 3);
+    cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
+    cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
+    cv::min(tempDepth, maxDist, tempDepth);
+    tempDepth -= minDist;
+    cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
+
+    depth.push_back(tempDepth);
+
+    std::cout << "loaded" << std::endl;
+
+    // cv::imshow("rgb",rgb[i]);
+    // cv::imshow("depth",depth[i]);
+    //cv::waitKey(0);
   }
 
-  cout << "total image num is " << fileNum << endl;
-
-
-  // find chessboard pattern from rgb image
-
-  // find chessboard pattern from depth file
-  for(int i = 0; i < fileNum; ++i){  
-
-
-
-    cv::Mat maxDist = cv::Mat::ones(depth[i].rows, depth[i].cols, CV_16U) * MAX_DEPTH;
-    cv::Mat minDist = cv::Mat::ones(depth[i].rows, depth[i].cols, CV_16U) * MIN_DEPTH;
-  
-    cv::min(depth[i], maxDist, depth[i]);
-    depth[i] -= minDist;
-
-    depth[i].convertTo(depth[i], CV_8UC1, 255.0 / (MAX_DEPTH - MIN_DEPTH));
-    cv::resize(depth[i], depth[i], cv::Size(), 2.0,2.0);
-
-
-
-    //cv::threshold(depth[i], depth[i], 200, 255.0, cv::THRESH_BINARY);
-
-    //cv::vector<cv::Point2f> depthCorners;
-    //cv::goodFeaturesToTrack(depth[i], depthCorners, 80, 0.01, 5);
-
-    // cv::vector<cv::Point2f>::iterator it_corner = depthCorners.begin();
-    // for(; it_corner!=depthCorners.end(); ++it_corner) {
-    //   cv::circle(depth[i], cv::Point(it_corner->x, it_corner->y), 1, cv::Scalar(0,200,255), -1);
-    //   cv::circle(depth[i], cv::Point(it_corner->x, it_corner->y), 8, cv::Scalar(0,200,255));
-    // }
-
-    cv::imshow("depth", depth[i]);
-    cv::waitKey(100);
-   
-  }
-
-
+  cv::namedWindow("rectified");
 
     for(int i = 0; i < fileNum; i++ )
       {
@@ -413,8 +364,11 @@ int main(int argc, char *argv[]){
 	  {
 	    if(k == 0){
 	      cv::Mat img = rgb[i].clone(), rimg, cimg;
+
 	      cv::remap(img, rimg, rmap[k][0], rmap[k][1], CV_INTER_LINEAR);
 	      cv::cvtColor(rimg, cimg, CV_GRAY2BGR);
+
+
 	      cv::Mat canvasPart = canvas(cv::Rect(w * k, 0, w, h));
 	      cv::resize(cimg, canvasPart, canvasPart.size(), 0, 0, CV_INTER_AREA);
 	      // if( useCalibrated )
@@ -444,7 +398,7 @@ int main(int argc, char *argv[]){
             //for(int j = 0; j < canvas.cols; j += 16 )
 	    //cv::line(canvas, cv::Point(j, 0), cv::Point(j, canvas.rows), cv::Scalar(0, 255, 0), 1, 8);
 	    cv::imshow("rectified", canvas);
-        char c = (char)cv::waitKey();
+        char c = (char)cv::waitKey(0);
         if( c == 27 || c == 'q' || c == 'Q' )
             break;
     }
