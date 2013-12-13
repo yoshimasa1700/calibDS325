@@ -16,3 +16,4 @@ install_manifest.txt
 calibData/
 intrinsics.yml
 extrinsics.yml
+cameraparam.xml
