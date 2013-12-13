@@ -1,9 +1,22 @@
+#ifndef _CALIBDS325_
+#define _CALIBDS325_
+
 #include <opencv2/opencv.hpp>
+
+#include <gflags/gflags.h>
 
 #include <iostream>
 #include <string>
 #include <sstream>
 
+#define MAX_DEPTH 1000
+#define MIN_DEPTH 0
+
+
+void loadImages(cv::vector<cv::Mat> &rgb, cv::vector<cv::Mat> &depth, const int &fileNum);
+
+
+#endif
 /* /\* static void */
 /* StereoCalib(const vector<string>& imagelist, Size boardSize, bool useCalibrated=true, bool showRectified=true) */
 /* { */

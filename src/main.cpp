@@ -1,21 +1,15 @@
 #include "calibDS325.h"
 
-#include <gflags/gflags.h>
-
-
 using namespace std;
 using namespace google;
 
-#define MAX_DEPTH 1000
-#define MIN_DEPTH 0
-
-double g_squareSize = 50.0;
-
-// definition for gflags
-DEFINE_string(color, "./calibData/color_", "default file name");
-DEFINE_string(depth, "./calibData/depth_", "defalut depth file name");
+DEFINE_string(color, "color_", "default file name");
+DEFINE_string(depth, "depth_", "defalut depth file name");
+DEFINE_string(folder, "./calibData", "defalut depth file name");
 DEFINE_string(type, ".png", "default file type");
 DEFINE_int32(num, 1, "default file num");
+
+double g_squareSize = 50.0;
 
 int main(int argc, char *argv[]){
   ParseCommandLineFlags(&argc, &argv, true);
@@ -40,46 +34,9 @@ int main(int argc, char *argv[]){
   cv::namedWindow("rgb");
   cv::namedWindow("depth");
 
-  // load chess board images
-  for(int i = 0; i < fileNum; ++i){
-    stringstream rgbfilename, depthfilename;
-    rgbfilename << FLAGS_color << i << FLAGS_type;
-    depthfilename << FLAGS_depth << i << FLAGS_type;
-    
-    cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
-
-    // load RGB image
-    cv::Mat tempRGB = cv::imread(rgbfilename.str(), 0);
-    //std::cout << tempRGB.channels() << std::endl;
-    //cv::cvtColor(tempRGB, tempRGB, CV_RGB2GRAY,3);
-    rgb.push_back(tempRGB);
-
-
-    // load depth image
-    cv::Mat tempDepth = cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH);
-    tempDepth.convertTo(tempDepth, CV_8U, 255.0/1000.0);
-    //cv::cvtColor(tempDepth, tempDepth, CV_GRAY2RGB, 3);
-    cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
-    cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
-    cv::min(tempDepth, maxDist, tempDepth);
-    tempDepth -= minDist;
-    cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
-    cv::Mat roiTempDepth;
-
-    cv::resize(tempDepth(cv::Rect(40, 43,498,498 / 4 * 3)), roiTempDepth, cv::Size(640, 480));
-
-    depth.push_back(roiTempDepth);
-
-    std::cout << "loaded" << std::endl;
-
-    cv::imshow("rgb",rgb[i]);
-    cv::imshow("depth",depth[i]);
-    cv::waitKey(100);
-  }
+  loadImages(rgb, depth, FLAGS_num);
 
   cout << "total image num is " << fileNum << endl;
-
-
 
   // find chessboard pattern from rgb image
   for(int i = 0; i < fileNum; ++i){
@@ -126,10 +83,6 @@ int main(int argc, char *argv[]){
   
   // // reset file num
   fileNum = rgb.size();
-  // std::cout << fileNum << std::endl;
-  // std::cout << depth.size() << std::endl;
-  // std::cout << imagePoints[0].size() << std::endl;
-  // std::cout << imagePoints[1].size() << std::endl;
 
   worldPoints.clear();
   worldPoints.resize(fileNum);
@@ -140,16 +93,6 @@ int main(int argc, char *argv[]){
 	  worldPoints[i].push_back(cv::Point3f(k*g_squareSize, j*g_squareSize, 0));
     }
   
-  // これまでの値を使ってキャリブレーション
-  // cv::calibrateCamera( worldPoints, imagePoints, rgb[0].size(), cameraMatrix, distCoeffs, 
-  // 		       rotationVectors, translationVectors );
-  // std::cout << "Camera parameters have been estimated" << std::endl << std::endl;
-
-  // cv::calibrateCamera( worldPoints, imagePoints[1], depth[0].size(), depthCameraMatrix, depthDistCoeffs, 
-  // 		       depthRotationVectors, depthTranslationVectors );
-  // std::cout << "Depth camera parameters have been estimated" << std::endl << std::endl;
-
-
   cout << "Running stereo calibration ...\n";
 
   //  cv::Mat cameraMatrix[2], distCoeffs[2];
@@ -245,7 +188,7 @@ int main(int argc, char *argv[]){
   // P2 = cameraMatrix[1];
 
   cv::Mat rmap[2][2];
-    //Precompute maps for cv::remap()
+  //Precompute maps for cv::remap()
 
   cv::Mat nonR1 = cv::Mat::eye(R1.size(),R1.type());
   cv::Mat nonR2 = cv::Mat::eye(R1.size(),R2.type());
@@ -271,10 +214,6 @@ int main(int argc, char *argv[]){
 			      rmap[1][1]
 			      );
 
-  // stereoRectify(cameraMatrix[0], distCoeffs[0],
-  // 		cameraMatrix[1], distCoeffs[1],
-  // 		rgb[0].size(), R, T, R1, R2, P1, P2, Q,
-  // 		cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
 
   fs.open("extrinsics.yml", CV_STORAGE_WRITE);
   if( fs.isOpened() )
@@ -302,8 +241,6 @@ int main(int argc, char *argv[]){
   cout << "Start Output Xml File" << endl;
 
   cv::FileStorage wfs("./cameraparam.xml", cv::FileStorage::WRITE);
-  //wfs << XMLTAG_CAMERAMAT << cameraMatrix;
-  //wfs << XMLTAG_DISTCOEFFS << distCoeffs;
 
   wfs << "aperture_Width" << apertureWidth;
   wfs << "aperture_Height" << apertureHeight;
@@ -317,46 +254,9 @@ int main(int argc, char *argv[]){
   cout << "Finish Output Xml File" << endl;
 
   // load chess board images
-  depth.clear();
-  rgb.clear();
   std::cout << "load image for quality check." << std::endl;
-  for(int i = 0; i < fileNum; ++i){
-    stringstream rgbfilename, depthfilename;
-    rgbfilename << FLAGS_color << i << FLAGS_type;
-    depthfilename << FLAGS_depth << i << FLAGS_type;
-    
-    cout << "loading : " << rgbfilename.str() << " and " << depthfilename.str() << endl;
+  loadImages(rgb, depth, FLAGS_num);
 
-    // load RGB image
-    cv::Mat tempRGB = cv::imread(rgbfilename.str(), 0);
-    //std::cout << tempRGB.channels() << std::endl;
-    //cv::cvtColor(tempRGB, tempRGB, CV_RGB2GRAY,3);
-    
-    rgb.push_back(tempRGB);
-
-
-    // load depth image
-    cv::Mat tempDepth = cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH);
-    tempDepth.convertTo(tempDepth, CV_8U, 255.0/1000.0);
-    //cv::cvtColor(tempDepth, tempDepth, CV_GRAY2RGB, 3);
-    cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
-    cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
-    cv::min(tempDepth, maxDist, tempDepth);
-    tempDepth -= minDist;
-    cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
-    cv::Mat roiTempDepth;
-    cv::resize(tempDepth(cv::Rect(40, 43,498,498 / 4 * 3)), roiTempDepth, cv::Size(640, 480));
-
-    depth.push_back(roiTempDepth);
-
-    //    depth.push_back(tempDepth);
-
-    std::cout << "loaded" << std::endl;
-
-    // cv::imshow("rgb",rgb[i]);
-    // cv::imshow("depth",depth[i]);
-    //cv::waitKey(0);
-  }
 
   // 歪み補正した画像を表示
   std::cout << "Undistorted images" << std::endl;
@@ -376,32 +276,14 @@ int main(int argc, char *argv[]){
     cv::waitKey( 0 );
   }
 
-  // cv::Mat rmap[2][2];
-
-  // //Precompute maps for cv::remap()
-  // cv::initUndistortRectifyMap(cameraMatrix[0], distCoeffs[0], R1, P1, rgb[0].size(), CV_16SC2, rmap[0][0], rmap[0][1]);
-  // cv::initUndistortRectifyMap(cameraMatrix[1], distCoeffs[1], R2, P2, rgb[0].size(), CV_16SC2, rmap[1][0], rmap[1][1]);
-
   cv::Mat canvas;
   double sf;
   int w, h;
-  // if( !isVerticalStereo )
-  // {
+
   sf = 600./MAX(rgb[0].size().width, rgb[0].size().height);
   w = cvRound(rgb[0].size().width*sf);
   h = cvRound(rgb[0].size().height*sf);
   canvas.create(h, w*2, CV_8UC3);
-  // }
-  // else
-  // {
-  //     sf = 300./MAX(rgb[0].size().width, rgb[0].size().height);
-  //     w = cvRound(rgb[0].size().width*sf);
-  //     h = cvRound(rgb[0].size().height*sf);
-  //     canvas.create(h*2, w, CV_8UC3);
-  // }
-
-
-  
 
   cv::namedWindow("rectified");
 
@@ -437,20 +319,13 @@ int main(int argc, char *argv[]){
 	    
 	  }
 	}
-
-      //if( !isVerticalStereo )
       for(int j = 0; j < canvas.rows; j += 16 )
 	cv::line(canvas, cv::Point(0, j), cv::Point(canvas.cols, j), cv::Scalar(0, 255, 0), 1, 8);
-      //else
-      //for(int j = 0; j < canvas.cols; j += 16 )
-      //cv::line(canvas, cv::Point(j, 0), cv::Point(j, canvas.rows), cv::Scalar(0, 255, 0), 1, 8);
       cv::imshow("rectified", canvas);
       char c = (char)cv::waitKey(0);
       if( c == 27 || c == 'q' || c == 'Q' )
 	break;
     }
-
-
 
   cv::destroyAllWindows();
 

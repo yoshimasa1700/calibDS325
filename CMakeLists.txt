@@ -27,16 +27,7 @@ FIND_PACKAGE(OpenCV)
 #     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 # endif()
 
-# バージョン番号
-SET(serial "1.0.0")
-# 共有ライブラリのバージョン番号
-SET(soserial "1")
-# ビルドするためにインクルードするヘッダーファイルの場所
-INCLUDE_DIRECTORIES("${PROJECT_SOURCE_DIR}")
 
-# 共有ライブラリとしてビルド
-#ADD_LIBRARY(HFMD_core SHARED src/CConfig.cpp src/CRForest.cpp src/HoG.cpp src/CDataset.cpp src/CRTree.cpp src/util.cpp)
-
-ADD_EXECUTABLE(calibDS325 main.cpp)
+ADD_EXECUTABLE(calibDS325 ./src/main.cpp ./src/calibDS325.cpp)
 
 TARGET_LINK_LIBRARIES(calibDS325 ${OpenCV_LIBRARIES} gflags)
