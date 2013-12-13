@@ -98,7 +98,8 @@ int main(int argc, char *argv[]){
       npoints += npt;
     }
   cout << "average reprojection err = " <<  err/npoints << endl;
-
+  
+  cout << "press key" << endl;
   cv::waitKey(0);
 
   // save intrinsic parameters
@@ -165,9 +166,26 @@ int main(int argc, char *argv[]){
 
 
   fs.open("extrinsics.yml", CV_STORAGE_WRITE);
+
+  cv::Mat_<int> vroiMat(2,4);
+  for(int i = 0; i < 2; ++i){
+    vroiMat.at<int>(i,0) = validRoi[i].x;
+    vroiMat.at<int>(i,1) = validRoi[i].y;
+    vroiMat.at<int>(i,2) = validRoi[i].width;
+    vroiMat.at<int>(i,3) = validRoi[i].height;
+  }
+
   if( fs.isOpened() )
     {
-      fs << "R" << R << "T" << T << "R1" << R1 << "R2" << R2 << "P1" << P1 << "P2" << P2 << "Q" << Q;
+      fs << "R" << R << 
+	"T" << T << 
+	"R1" << R1 << 
+	"R2" << R2 << 
+	"P1" << P1 << 
+	"P2" << P2 << 
+	"Q" << Q <<
+	"vroi" << vroiMat;
+
       fs.release();
     }
   else
