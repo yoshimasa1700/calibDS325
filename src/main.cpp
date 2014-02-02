@@ -38,8 +38,7 @@ int main(int argc, char *argv[]){
   // find chessboard pattern from rgb image
   fileNum = findChessboard(rgb, depth, imagePoints, patternSize,fileNum);
 
-  //  cout << fileNum << std::endl;
-
+  cout << "correct file num is " << fileNum << endl;
   setWorldPoints(worldPoints, patternSize, fileNum);
   
   cout << "Running stereo calibration ...\n";
@@ -103,15 +102,15 @@ int main(int argc, char *argv[]){
   cv::waitKey(0);
 
   // save intrinsic parameters
-  cv::FileStorage fs("intrinsics.yml", CV_STORAGE_WRITE);
-  if( fs.isOpened() )
-    {
-      fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
-	"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
-      fs.release();
-    }
-  else
-    cout << "Error: can not save the intrinsic parameters\n";
+  // cv::FileStorage fs("cameraparam.yml", CV_STORAGE_WRITE);
+  // if( fs.isOpened() )
+  //   {
+  //     fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+  //       "M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
+  //     fs.release();
+  //   }
+  // else
+  //   cout << "Error: can not save the intrinsic parameters\n";
 
   cv::Mat R1, R2, P1, P2, Q;
   cv::Rect validRoi[2];
@@ -165,7 +164,7 @@ int main(int argc, char *argv[]){
 			      );
 
 
-  fs.open("extrinsics.yml", CV_STORAGE_WRITE);
+  cv::FileStorage fs("cameraparam.yml", CV_STORAGE_WRITE);
 
   cv::Mat_<int> vroiMat(2,4);
   for(int i = 0; i < 2; ++i){
@@ -177,6 +176,8 @@ int main(int argc, char *argv[]){
 
   if( fs.isOpened() )
     {
+      fs << "M1" << cameraMatrix[0] << "D1" << distCoeffs[0] <<
+	"M2" << cameraMatrix[1] << "D2" << distCoeffs[1];
       fs << "R" << R << 
 	"T" << T << 
 	"R1" << R1 << 
@@ -223,25 +224,6 @@ int main(int argc, char *argv[]){
   // load chess board images
   std::cout << "load image for quality check." << std::endl;
   loadImages(rgb, depth, FLAGS_num);
-
-
-  // // 歪み補正した画像を表示
-  // std::cout << "Undistorted images" << std::endl;
-  // cv::Mat	undistorted, depthUndistorted;
-  // cv::namedWindow( "result" );
-  // cv::namedWindow( "result_depth" );
-  // for( int i = 0; i < fileNum; i++ ) {
-  //   cv::undistort( rgb[i], undistorted, cameraMatrix[0], distCoeffs[0] );
-  //   cv::undistort( depth[i], depthUndistorted, cameraMatrix[1], distCoeffs[1] );
-
-  //   cv::imshow( "result", undistorted );
-  //   cv::imshow( "rgb", rgb[i] );
-
-  //   cv::imshow( "result_depth", depthUndistorted );
-  //   cv::imshow( "depth", depth[i] );
-
-  //   cv::waitKey( 0 );
-  // }
 
   cv::Mat canvas;
   double sf;

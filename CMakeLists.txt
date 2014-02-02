@@ -13,7 +13,7 @@ PROJECT(calibDS325)
 
 
 FIND_PACKAGE(OpenCV)
-
+LINK_DIRECTORIES("/usr/local/lib")
 
 ADD_EXECUTABLE(calibDS325 ./src/main.cpp ./src/calibDS325.cpp)
 TARGET_LINK_LIBRARIES(calibDS325 ${OpenCV_LIBRARIES} gflags)

@@ -10,7 +10,7 @@ DECLARE_string(folder);
 DECLARE_string(type);
 DECLARE_int32(num);
 
-double g_squareSize = 50.0;
+double g_squareSize = 500.0;
 
 void loadImages(cv::vector<cv::Mat> &rgb, 
 		cv::vector<cv::Mat> &depth, 
@@ -33,10 +33,10 @@ void loadImages(cv::vector<cv::Mat> &rgb,
     // load depth image
     cv::Mat tempDepth = cv::imread(depthfilename.str(), CV_LOAD_IMAGE_ANYDEPTH);
     tempDepth.convertTo(tempDepth, CV_8U, 255.0/1000.0);
-    cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
-    cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
-    cv::min(tempDepth, maxDist, tempDepth);
-    tempDepth -= minDist;
+    // cv::Mat maxDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MAX_DEPTH;
+    // cv::Mat minDist = cv::Mat::ones(tempDepth.rows, tempDepth.cols, CV_8U) * MIN_DEPTH;
+    // cv::min(tempDepth, maxDist, tempDepth);
+    // tempDepth -= minDist;
     cv::resize(tempDepth, tempDepth, cv::Size(), 2.0,2.0);
     cv::Mat roiTempDepth;
 
@@ -57,7 +57,7 @@ int findChessboard(cv::vector<cv::Mat> &rgb, cv::vector<cv::Mat> &depth,
 		   cv::vector<cv::vector<cv::vector<cv::Point2f> > > &imagePoints,
 		   const cv::Size patternSize,
 		   const int &fileNum){
-    for(int i = 0; i < fileNum; ++i){
+    for(int i = 0; i < rgb.size(); ++i){
     cout << i << endl;
     
     if( cv::findChessboardCorners( rgb[i], 
@@ -93,6 +93,7 @@ int findChessboard(cv::vector<cv::Mat> &rgb, cv::vector<cv::Mat> &depth,
       depth.erase(depth.begin() + i);
       imagePoints[0].erase(imagePoints[0].begin() + i);
       imagePoints[1].erase(imagePoints[1].begin() + i);
+      cout << rgb.size() << endl;;
       //      fileNum--;
       i--;
       cv::waitKey( 100 );
