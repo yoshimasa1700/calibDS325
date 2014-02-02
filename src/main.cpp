@@ -48,7 +48,8 @@ int main(int argc, char *argv[]){
   cameraMatrix[1] = cv::Mat::eye(3, 3, CV_64F);
   cv::Mat R, T, E, F;
 
-  double rms = stereoCalibrate(worldPoints, imagePoints[0], imagePoints[1],
+  double rms = stereoCalibrate(worldPoints,
+                               imagePoints[0], imagePoints[1],
 			       cameraMatrix[0], distCoeffs[0],
 			       cameraMatrix[1], distCoeffs[1],
 			       rgb[0].size(), R, T, E, F,
@@ -117,8 +118,10 @@ int main(int argc, char *argv[]){
 
   stereoRectify(cameraMatrix[0], distCoeffs[0],
                   cameraMatrix[1], distCoeffs[1],
-		rgb[0].size(), R, T, R1, R2, P1, P2, Q,
-		cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
+        	rgb[0].size(), R, T, R1, R2, P1, P2, Q,
+        	cv::CALIB_ZERO_DISPARITY, 1, rgb[0].size(), &validRoi[0], &validRoi[1]);
+
+  cout << validRoi[0] << " " << validRoi[1] << endl;
 
   cv::vector<cv::Point2f> allimgpt[2];
   for(int k = 0; k < 2; k++ )
@@ -131,10 +134,10 @@ int main(int argc, char *argv[]){
   cv::Mat H1, H2;
   cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
   
-  // R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
-  // R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
-  // P1 = cameraMatrix[0];
-  // P2 = cameraMatrix[1];
+  R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
+  R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
+  P1 = cameraMatrix[0];
+  P2 = cameraMatrix[1];
 
   cv::Mat rmap[2][2];
   //Precompute maps for cv::remap()
@@ -163,6 +166,8 @@ int main(int argc, char *argv[]){
 			      rmap[1][1]
 			      );
 
+  validRoi[0] = cv::Rect(50,50,590,430);
+  validRoi[1] = cv::Rect(50,50,590,430);
 
   cv::FileStorage fs("cameraparam.yml", CV_STORAGE_WRITE);
 

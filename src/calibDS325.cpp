@@ -10,7 +10,7 @@ DECLARE_string(folder);
 DECLARE_string(type);
 DECLARE_int32(num);
 
-double g_squareSize = 500.0;
+double g_squareSize = 50.0;
 
 void loadImages(cv::vector<cv::Mat> &rgb, 
 		cv::vector<cv::Mat> &depth, 
