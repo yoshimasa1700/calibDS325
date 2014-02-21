@@ -44,9 +44,46 @@ int main(int argc, char *argv[]){
   cout << "Running stereo calibration ...\n";
 
   //  cv::Mat cameraMatrix[2], distCoeffs[2];
-  cameraMatrix[0] = cv::Mat::eye(3, 3, CV_64F);
-  cameraMatrix[1] = cv::Mat::eye(3, 3, CV_64F);
+  cameraMatrix[0] = cv::Mat::eye(3, 3, CV_64FC1);
+  cameraMatrix[1] = cv::Mat::eye(3, 3, CV_64FC1);
+
+  distCoeffs[0] = cv::Mat(8,1,CV_64FC1);
+  distCoeffs[1] = cv::Mat(8,1,CV_64FC1);
   cv::Mat R, T, E, F;
+
+  R = cv::Mat::eye(3,3,CV_64FC1);
+  T = cv::Mat::eye(3,3,CV_64FC1);
+  E = cv::Mat::eye(3,3,CV_64FC1);
+  F = cv::Mat::eye(3,3,CV_64FC1);
+
+  cv::vector<cv::Mat> rvecs;
+  cv::vector<cv::Mat> tvecs;
+
+  double rms1 = calibrateCamera(worldPoints,
+                                imagePoints[0],rgb[0].size(),
+                                cameraMatrix[0],
+                                distCoeffs[0],
+                                rvecs,
+                                tvecs,
+                                CV_CALIB_FIX_K4|CV_CALIB_FIX_K5);
+
+  double rms2 = calibrateCamera(worldPoints,
+                                imagePoints[1],rgb[0].size(),
+                                cameraMatrix[1],
+                                distCoeffs[1],
+                                rvecs,
+                                tvecs,
+                                CV_CALIB_FIX_K4|CV_CALIB_FIX_K5);
+
+  cout << "camera matrix" << endl;
+  cout << cameraMatrix[0] << endl;
+  cout << cameraMatrix[1] << endl;
+
+  cout << "dist coeffs" << endl;
+  cout << distCoeffs[0] << endl;
+  cout << distCoeffs[1] << endl;
+
+  
 
   double rms = stereoCalibrate(worldPoints,
                                imagePoints[0], imagePoints[1],
@@ -54,15 +91,31 @@ int main(int argc, char *argv[]){
 			       cameraMatrix[1], distCoeffs[1],
 			       rgb[0].size(), R, T, E, F,
 			       cv::TermCriteria(CV_TERMCRIT_ITER+CV_TERMCRIT_EPS, 100, 1e-5),
-			       			       CV_CALIB_USE_INTRINSIC_GUESS +
-			       			       CV_CALIB_FIX_ASPECT_RATIO +
-			       			       CV_CALIB_ZERO_TANGENT_DIST +
+                               CV_CALIB_USE_INTRINSIC_GUESS +
+                               //CV_CALIB_FIX_INTRINSIC +
+                               CV_CALIB_FIX_PRINCIPAL_POINT + 
+                               CV_CALIB_FIX_ASPECT_RATIO +
+                               CV_CALIB_ZERO_TANGENT_DIST +
 			       //CV_CALIB_SAME_FOCAL_LENGTH +
 			       CV_CALIB_RATIONAL_MODEL +
 			       CV_CALIB_FIX_K3 + CV_CALIB_FIX_K4 + CV_CALIB_FIX_K5
 			       );
   cout << "done with RMS error=" << rms << endl;
 
+
+  cout << "camera matrix" << endl;
+  cout << cameraMatrix[0] << endl;
+  cout << cameraMatrix[1] << endl;
+
+  cout << "dist coeffs" << endl;
+  cout << distCoeffs[0] << endl;
+  cout << distCoeffs[1] << endl;
+
+  cout << "R " << R << endl;
+  cout << "T " << T << endl;
+  cout << "E " << E << endl;
+  cout << "F " << F << endl;
+  
   // CALIBRATION QUALITY CHECK
   // because the output fundamental matrix implicitly
   // includes all the output information,
@@ -130,14 +183,14 @@ int main(int argc, char *argv[]){
 	std::copy(imagePoints[k][i].begin(), imagePoints[k][i].end(), back_inserter(allimgpt[k]));
     }
 
-  F = cv::findFundamentalMat(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), cv::FM_8POINT, 0, 0);
-  cv::Mat H1, H2;
-  cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
+  // F = cv::findFundamentalMat(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), cv::FM_8POINT, 0, 0);
+  // cv::Mat H1, H2;
+  // cv::stereoRectifyUncalibrated(cv::Mat(allimgpt[0]), cv::Mat(allimgpt[1]), F, rgb[0].size(), H1, H2, 3);
   
-  R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
-  R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
-  P1 = cameraMatrix[0];
-  P2 = cameraMatrix[1];
+  // R1 = cameraMatrix[0].inv()*H1*cameraMatrix[0];
+  // R2 = cameraMatrix[1].inv()*H2*cameraMatrix[1];
+  // P1 = cameraMatrix[0];
+  // P2 = cameraMatrix[1];
 
   cv::Mat rmap[2][2];
   //Precompute maps for cv::remap()
@@ -166,8 +219,8 @@ int main(int argc, char *argv[]){
 			      rmap[1][1]
 			      );
 
-  validRoi[0] = cv::Rect(50,50,590,430);
-  validRoi[1] = cv::Rect(50,50,590,430);
+  // validRoi[0] = cv::Rect(0,0,590,430);
+  // validRoi[1] = cv::Rect(0,0,590,430);
 
   cv::FileStorage fs("cameraparam.yml", CV_STORAGE_WRITE);
 
